@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Title Craft - AI Blog Title Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+        
+        body {
+            margin: 0;
+            overflow-x: hidden;
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: white;
+        }
+
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            border: 1px rgba(255, 255, 255, 0.1) solid;
+            border-radius: 24px;
+        }
+
+        .gradient-text {
+            background: linear-gradient(90deg, #60a5fa, #a855f7, #f472b6);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .loader {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top: 3px solid #60a5fa;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .copy-feedback {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: #10b981;
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            display: none;
+            animation: slideUp 0.3s ease-out;
+            z-index: 100;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <!-- Navigation (Visible after login) -->
+    <nav id="navbar" class="hidden fixed top-0 w-full p-6 flex justify-between items-center z-50 bg-slate-900/50 backdrop-blur-md border-b border-white/5">
+        <div class="text-2xl font-bold tracking-tight">Title<span class="gradient-text">Craft</span></div>
+        <div class="flex items-center gap-6">
+            <span class="text-sm font-medium text-gray-300">Logged in as: <span id="navUserName" class="text-white font-bold">Creator</span></span>
+            <button onclick="logout()" class="text-sm font-medium bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-colors">Logout</button>
+        </div>
+    </nav>
+
+    <div class="min-h-screen flex flex-col items-center justify-center p-6">
+        
+        <!-- Auth Section -->
+        <section id="authSection" class="w-full max-w-md fade-in">
+            <div class="text-center mb-12">
+                <h1 class="text-5xl font-extrabold mb-4 tracking-tight">
+                    Title<span class="gradient-text">Craft</span>
+                </h1>
+                <p id="authSubtitle" class="text-gray-400">Welcome back! Please sign in.</p>
+            </div>
+
+            <div class="glass-card p-8">
+                <!-- Login Form -->
+                <form id="loginForm" onsubmit="handleAuth(event, 'login')" class="space-y-4">
+                    <input type="email" required placeholder="Email address" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <input type="password" required placeholder="Password" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-blue-500/20">Sign In</button>
+                    <p class="text-center text-sm text-gray-400">Don't have an account? <a href="#" onclick="toggleAuthMode(event, 'signup')" class="text-blue-400 hover:underline">Sign up</a></p>
+                </form>
+
+                <!-- Signup Form (Hidden initially) -->
+                <form id="signupForm" onsubmit="handleAuth(event, 'signup')" class="hidden space-y-4">
+                    <input type="text" id="signupName" required placeholder="Full Name" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <input type="email" required placeholder="Email address" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <input type="password" required placeholder="Create Password" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <button type="submit" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-purple-500/20">Create Account</button>
+                    <p class="text-center text-sm text-gray-400">Already a hero? <a href="#" onclick="toggleAuthMode(event, 'login')" class="text-purple-400 hover:underline">Log in</a></p>
+                </form>
+            </div>
+        </section>
+
+        <!-- Main App Section (Hidden initially) -->
+        <main id="appSection" class="hidden w-full max-w-2xl fade-in mt-24">
+            <header class="text-center mb-12">
+                <h1 class="text-4xl md:text-6xl font-extrabold mb-4 tracking-tight">
+                    Welcome back, <span class="gradient-text" id="userNameDisplay">Creator</span>
+                </h1>
+                <p class="text-gray-400 text-lg">
+                    Generate the perfect, catchy title for your next viral blog post.
+                </p>
+            </header>
+
+            <div class="glass-card p-8 mb-8">
+                <div class="flex flex-col gap-4">
+                    <label class="text-sm font-semibold text-blue-400 uppercase tracking-widest">What is your blog about?</label>
+                    <div class="relative">
+                        <input 
+                            type="text" 
+                            id="topicInput"
+                            placeholder="e.g. Sustainable gardening for beginners" 
+                            class="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-gray-500"
+                        >
+                    </div>
+                    <button 
+                        id="generateBtn"
+                        onclick="generateTitles()"
+                        class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-xl transition-all transform hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3 shadow-lg shadow-blue-500/20"
+                    >
+                        <span id="btnText">Generate Title</span>
+                        <div id="btnLoader" class="loader hidden"></div>
+                    </button>
+                </div>
+            </div>
+
+            <div id="resultsArea" class="space-y-4 hidden">
+                <h3 class="text-xl font-semibold mb-4 text-gray-300">Generated Titles:</h3>
+                <div id="titlesGrid" class="grid gap-3">
+                    <!-- Titles will appear here -->
+                </div>
+            </div>
+
+            <div id="errorBox" class="hidden p-4 bg-red-500/20 border border-red-500/50 rounded-xl text-red-200 text-center">
+            </div>
+        </main>
+
+        <footer class="mt-20 text-gray-500 text-sm">
+            Powered by Gemini AI • Simulated Auth Mode
+        </footer>
+    </div>
+
+    <div id="copyToast" class="copy-feedback">Copied to clipboard!</div>
+
+    <script>
+        // --- AUTH SIMULATION LOGIC ---
+        function toggleAuthMode(e, mode) {
+            if(e) e.preventDefault();
+            const loginForm = document.getElementById('loginForm');
+            const signupForm = document.getElementById('signupForm');
+            const authSubtitle = document.getElementById('authSubtitle');
+
+            if (mode === 'signup') {
+                loginForm.classList.add('hidden');
+                signupForm.classList.remove('hidden');
+                authSubtitle.textContent = "Join the community of creators.";
+            } else {
+                loginForm.classList.remove('hidden');
+                signupForm.classList.add('hidden');
+                authSubtitle.textContent = "Welcome back! Please sign in.";
+            }
+        }
+
+        function handleAuth(e, type) {
+            e.preventDefault();
+            const nameInput = document.getElementById('signupName');
+            const name = type === 'signup' && nameInput.value ? nameInput.value : "Creative Hero";
+            
+            // Update both the center display and the top nav bar
+            document.getElementById('userNameDisplay').textContent = name.split(' ')[0];
+            document.getElementById('navUserName').textContent = name;
+            
+            document.getElementById('authSection').classList.add('hidden');
+            document.getElementById('appSection').classList.remove('hidden');
+            document.getElementById('navbar').classList.remove('hidden');
+        }
+
+        function logout() {
+            document.getElementById('authSection').classList.remove('hidden');
+            document.getElementById('appSection').classList.add('hidden');
+            document.getElementById('navbar').classList.add('hidden');
+            // Reset fields
+            document.getElementById('topicInput').value = '';
+            document.getElementById('resultsArea').classList.add('hidden');
+        }
+
+        // --- THREE.JS BACKGROUND ---
+        let scene, camera, renderer, particles;
+
+        function initThree() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            const geometry = new THREE.BufferGeometry();
+            const vertices = [];
+            for (let i = 0; i < 5000; i++) {
+                vertices.push(
+                    Math.random() * 2000 - 1000,
+                    Math.random() * 2000 - 1000,
+                    Math.random() * 2000 - 1000
+                );
+            }
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+
+            const material = new THREE.PointsMaterial({
+                color: 0x60a5fa,
+                size: 2,
+                transparent: true,
+                opacity: 0.5
+            });
+
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+
+            camera.position.z = 500;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            particles.rotation.x += 0.0005;
+            particles.rotation.y += 0.0005;
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        window.onload = () => {
+            initThree();
+            animate();
+        };
+
+        // --- AI GENERATION LOGIC ---
+        const apiKey = "AIzaSyCg37G7POfuf1GMxjUCyx23vSpud8QQ5Kg";
+
+        async function fetchWithRetry(url, options, retries = 5, backoff = 1000) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) throw new Error('API Error');
+                return await response.json();
+            } catch (err) {
+                if (retries > 0) {
+                    await new Promise(res => setTimeout(res, backoff));
+                    return fetchWithRetry(url, options, retries - 1, backoff * 2);
+                }
+                throw err;
+            }
+        }
+
+        async function generateTitles() {
+            const topic = document.getElementById('topicInput').value.trim();
+            if (!topic) return;
+
+            const btn = document.getElementById('generateBtn');
+            const btnText = document.getElementById('btnText');
+            const btnLoader = document.getElementById('btnLoader');
+            const resultsArea = document.getElementById('resultsArea');
+            const titlesGrid = document.getElementById('titlesGrid');
+            const errorBox = document.getElementById('errorBox');
+
+            btn.disabled = true;
+            btnText.textContent = "Consulting the Muse...";
+            btnLoader.classList.remove('hidden');
+            errorBox.classList.add('hidden');
+
+            const systemPrompt = "You are a professional blog editor and copywriter. Generate 5 unique, catchy, SEO-friendly, and high-engagement blog titles based on the topic provided. Return them as a simple numbered list.";
+            const userQuery = `Topic: ${topic}`;
+
+            try {
+                const result = await fetchWithRetry(
+                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: userQuery }] }],
+                            systemInstruction: { parts: [{ text: systemPrompt }] }
+                        })
+                    }
+                );
+
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!text) throw new Error("No titles generated.");
+
+                const titles = text.split(/\n/).filter(line => line.trim().match(/^\d+\./)).map(line => line.replace(/^\d+\.\s*/, '').trim());
+
+                displayResults(titles);
+            } catch (err) {
+                errorBox.textContent = "The creative juices hit a snag. Please try again in a moment.";
+                errorBox.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btnText.textContent = "Generate Magic";
+                btnLoader.classList.add('hidden');
+            }
+        }
+
+        function displayResults(titles) {
+            const resultsArea = document.getElementById('resultsArea');
+            const titlesGrid = document.getElementById('titlesGrid');
+            titlesGrid.innerHTML = '';
+
+            titles.forEach(title => {
+                const div = document.createElement('div');
+                div.className = "glass-card p-4 flex justify-between items-center group hover:bg-white/10 transition-colors cursor-pointer";
+                div.innerHTML = `
+                    <span class="text-white font-medium pr-4">${title}</span>
+                    <button class="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity text-xs font-bold uppercase">Copy</button>
+                `;
+                div.onclick = () => copyToClipboard(title);
+                titlesGrid.appendChild(div);
+            });
+
+            resultsArea.classList.remove('hidden');
+            resultsArea.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function copyToClipboard(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showToast();
+            } catch (err) {
+                console.error('Copy failed');
+            }
+            document.body.removeChild(textArea);
+        }
+
+        function showToast() {
+            const toast = document.getElementById('copyToast');
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
